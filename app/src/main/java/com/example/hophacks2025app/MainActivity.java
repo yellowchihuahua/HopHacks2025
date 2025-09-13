@@ -1,192 +1,240 @@
 package com.example.hophacks2025app;
 
-
-
-import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-
-//from https://docs.opencv.org/4.x/d5/df8/tutorial_dev_with_OCV_on_Android.html
-import android.content.Context;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.Point;
+import android.graphics.Color;
 import android.os.Bundle;
-import android.util.AttributeSet;
 import android.util.Log;
-import android.view.Display;
-import android.view.Surface;
-import android.view.SurfaceView;
-import android.view.ViewGroup;
-import android.view.WindowManager;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.example.hophacks2025app.R;
 
 import org.opencv.android.CameraActivity;
-import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
+import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.OpenCVLoader;
-import org.opencv.android.Utils;
 import org.opencv.core.Core;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
-import org.opencv.android.CameraBridgeViewBase;
-import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
-import org.opencv.core.MatOfRect;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
-import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
-import org.opencv.objdetect.CascadeClassifier;
 
-import java.io.*;
-import java.util.Collections;
-import java.util.List;
+public class MainActivity extends CameraActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
-public class MainActivity extends CameraActivity implements CvCameraViewListener2 {
+    private static final int REQUEST_CODE_PERMISSIONS = 10;
+    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
+    private static final String TAG = "MainActivity";
 
-    private CameraBridgeViewBase mOpenCvCameraView;
-    private CascadeClassifier faceCascade;
+    private JavaCameraView cameraView;
+    private ImageView capturedImageView;
+    private Button captureButton;
+    private Button tryAgainButton;
+    private LinearLayout resultLayout;
+    private TextView resultText;
+    private TextView suggestionsText;
 
-    //front camera id
-    int frontCamera = CameraBridgeViewBase.CAMERA_ID_FRONT;
-    Mat mRGBA, mRGBAT, mGray; //to flip camera display
+    private Mat capturedFrame;
+    private boolean isCapturing = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
         super.onCreate(savedInstanceState);
-
-// from this https://docs.opencv.org/4.x/d5/df8/tutorial_dev_with_OCV_on_Android.html
-        if (OpenCVLoader.initLocal()) {
-            Log.i("LOADED", "OpenCV loaded successfully");
-        } else {
-            Log.e("LOADED", "OpenCV initialization failed!");
-            (Toast.makeText(this, "OpenCV initialization failed!", Toast.LENGTH_LONG)).show();
-            return;
-        }
-
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         setContentView(R.layout.activity_main);
 
-        //set this to the camera view in the xml
-        mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.tutorial1_activity_java_surface_view);
+        // Find UI elements…
+        cameraView = findViewById(R.id.camera_view);
+        //capturedImageView = findViewById(R.id.captured_image_view);
+        captureButton = findViewById(R.id.capture_button);
+        tryAgainButton = findViewById(R.id.try_again_button);
+        resultLayout = findViewById(R.id.result_layout);
+        resultText = findViewById(R.id.result_text);
+        suggestionsText = findViewById(R.id.suggestions_text);
 
+        // Check for camera permissions
+        if (allPermissionsGranted()) {
+            loadOpenCV();
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
+        }
 
-        //set to front camera
-        mOpenCvCameraView.setCameraIndex(frontCamera);
+        cameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_FRONT);
+        cameraView.setVisibility(View.VISIBLE);
+        cameraView.setCvCameraViewListener(this);
 
-        mOpenCvCameraView.setMaxFrameSize(2400 , 1017);
-
-        //enable visibliity
-        mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
-
-        mOpenCvCameraView.setCvCameraViewListener(this);
-
-        loadCascade();
+        captureButton.setOnClickListener(v -> takePhoto());
+        tryAgainButton.setOnClickListener(v -> resetApp());
     }
 
-    private void loadCascade() {
-        try {
-            // Load cascade from raw resources
-            InputStream is = getResources().openRawResource(R.raw.haarcascade_frontalface_default);
-            File cascadeDir = getDir("cascade", MODE_PRIVATE);
-            File mCascadeFile = new File(cascadeDir, "custom_cat_cascade.xml");
-            FileOutputStream os = new FileOutputStream(mCascadeFile);
-
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = is.read(buffer)) != -1) {
-                os.write(buffer, 0, bytesRead);
-            }
-            is.close();
-            os.close();
-
-            faceCascade = new CascadeClassifier(mCascadeFile.getAbsolutePath());
-            if (faceCascade.empty()) {
-                Log.e("OpenCV", "Failed to load cascade classifier");
-                faceCascade = null;
-            } else {
-                Log.d("OpenCV", "Loaded cascade classifier from " + mCascadeFile.getAbsolutePath());
-            }
-
-            cascadeDir.delete();
-        } catch (IOException e) {
-            e.printStackTrace();
+    private void loadOpenCV() {
+        if (!OpenCVLoader.initLocal()) {
+            Log.e(TAG, "OpenCV Initialization Failed!");
+            Toast.makeText(this, "OpenCV Initialization Failed!", Toast.LENGTH_LONG).show();
+        } else {
+            Log.d(TAG, "OpenCV Initialization Successful!");
+            cameraView.enableView();
         }
     }
 
-
-    @Override
-    protected List<? extends CameraBridgeViewBase> getCameraViewList() {
-        return Collections.singletonList(mOpenCvCameraView);
-    }
-
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        if (mOpenCvCameraView != null)
-            mOpenCvCameraView.disableView();
-    }
-
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        if (mOpenCvCameraView != null)
-            mOpenCvCameraView.enableView();
+    private boolean allPermissionsGranted() {
+        for (String permission : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (mOpenCvCameraView != null)
-            mOpenCvCameraView.disableView();
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (allPermissionsGranted()) {
+                loadOpenCV();
+            } else {
+                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        }
     }
+
+    // --- OpenCV Camera View Listener Methods ---
 
     @Override
     public void onCameraViewStarted(int width, int height) {
-        mRGBAT = new Mat();
+        capturedFrame = new Mat(height, width, CvType.CV_8UC4);
     }
 
     @Override
     public void onCameraViewStopped() {
-        mRGBA.release();
+        if (capturedFrame != null) {
+            capturedFrame.release();
+        }
     }
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        // code for the front camera to display flipped in color
-        mRGBA = inputFrame.rgba();
-        Core.flip(mRGBA, mRGBAT, 1); // mirror front camera
-        mRGBA.release();
+        Mat rgba = inputFrame.rgba();
 
-        //now, our mRGBAT is the correct flipped version of frontal camera
+        if (isCapturing) {
+            capturedFrame = rgba;
+            isCapturing = false;
+            runOnUiThread(() -> {
+                analyzeImage(capturedFrame);
+                captureButton.setEnabled(true);
+            });
+        }
+        return rgba;
+    }
 
+    // --- Main Application Logic ---
 
-        mGray = inputFrame.gray();
-        Core.flip(mGray,mGray,1); //mirror so its correct
+    private void takePhoto() {
+        captureButton.setEnabled(false);
+        Toast.makeText(this, "Analyzing photo...", Toast.LENGTH_SHORT).show();
+        isCapturing = true;
+    }
 
-        if (faceCascade != null) {
-            MatOfRect faces = new MatOfRect();
-            faceCascade.detectMultiScale(
-                    mGray,
-                    faces,
-                    1.1,    // scale factor8
-                    3,      // min neighbors
-                    0,      // flags
-                    new Size(30, 30), // min size
-                    new Size()        // max size (0 = unlimited)
-            );
+    private void analyzeImage(Mat image) {
+        // Hide camera view and show result layout
+        cameraView.setVisibility(View.GONE);
+        resultLayout.setVisibility(View.VISIBLE);
 
-            //use Imgproc to draw rectangles on detected faces
-            for (Rect rect : faces.toArray()) {
-                Imgproc.rectangle(mRGBAT, rect.tl(), rect.br(), new Scalar(0, 255, 0, 255), 3);
-            }
+        // Show captured image on the ImageView
+        Bitmap bmp = null;
+        try {
+            bmp = Bitmap.createBitmap(image.cols(), image.rows(), Bitmap.Config.ARGB_8888);
+            org.opencv.android.Utils.matToBitmap(image, bmp);
+            capturedImageView.setImageBitmap(bmp);
+        } catch (Exception e) {
+            Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
         }
 
-        return mRGBAT;
+        capturedImageView.setVisibility(View.VISIBLE);
+
+        // Get average color of the center of the image
+        int width = image.cols();
+        int height = image.rows();
+        int centerX = width / 2;
+        int centerY = height / 2;
+        int analysisSize = Math.min(width, height) / 4;
+
+        Rect roi = new Rect(centerX - analysisSize / 2, centerY - analysisSize / 2, analysisSize, analysisSize);
+        Mat roiMat = new Mat(image, roi);
+        Scalar avgColor = Core.mean(roiMat);
+
+        double avgR = avgColor.val[0];
+        double avgG = avgColor.val[1];
+        double avgB = avgColor.val[2];
+
+        roiMat.release();
+
+        // Simplified Jaundice detection logic based on Bili-Tool color charts
+        String severity;
+        String suggestions;
+
+        double rG_ratio = avgR / avgG;
+
+        if (rG_ratio > 1.2 && avgB < 100) {
+            severity = "No Jaundice Detected";
+            suggestions = "The skin tone appears normal. Continue to monitor for any changes.";
+        } else if (rG_ratio >= 1.05 && rG_ratio <= 1.2 && avgB < 120) {
+            severity = "Mild Jaundice";
+            suggestions = "Provide frequent feedings (8-12 times a day). Place the baby in a well-lit room with indirect sunlight. Contact your pediatrician for a professional opinion.";
+        } else {
+            severity = "Moderate to Severe Jaundice";
+            suggestions = "This requires immediate medical attention. Go to the nearest hospital or call emergency services immediately. Do not rely on home remedies.";
+        }
+
+        // Display results and show the "Try Again" button
+        resultText.setText("Preliminary Assessment: " + severity);
+        suggestionsText.setText(suggestions);
+        captureButton.setVisibility(View.GONE);
+        tryAgainButton.setVisibility(View.VISIBLE);
+    }
+
+    private void resetApp() {
+        // Reset UI to initial state
+        cameraView.setVisibility(View.VISIBLE);
+        capturedImageView.setVisibility(View.GONE);
+        resultLayout.setVisibility(View.GONE);
+        captureButton.setVisibility(View.VISIBLE);
+        tryAgainButton.setVisibility(View.GONE);
+        captureButton.setEnabled(true);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (cameraView != null) {
+            cameraView.enableView();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (cameraView != null) {
+            cameraView.disableView();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (cameraView != null) {
+            cameraView.disableView();
+        }
     }
 }
