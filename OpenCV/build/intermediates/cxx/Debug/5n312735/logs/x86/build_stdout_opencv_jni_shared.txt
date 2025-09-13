@@ -1,0 +1,2 @@
+ninja: Entering directory `C:\Users\linc7\Documents\GitHub\HopHacks2025\OpenCV\.cxx\Debug\5n312735\x86'
+ninja: no work to do.

@@ -1,4 +1,0 @@
-/Users/minse/Library/Android/sdk/cmake/3.22.1/bin/ninja \
-  -C \
-  /Users/minse/Downloads/HopHacks2025/OpenCV/.cxx/Debug/5n312735/arm64-v8a \
-  opencv_jni_shared

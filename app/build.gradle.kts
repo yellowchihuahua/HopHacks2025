@@ -29,6 +29,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+    buildFeatures {
+        mlModelBinding = true
+    }
 }
 
 dependencies {
@@ -38,10 +41,13 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
     implementation(project(":OpenCV"))
+    implementation(libs.tensorflow.lite.support)
+    implementation(libs.tensorflow.lite.metadata)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
-    implementation("org.tensorflow:tensorflow-lite:2.9.0")
-    implementation("org.tensorflow:tensorflow-lite-task-vision:0.3.1")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0")
+    //try fix from joy 5:14p
+    //implementation("org.tensorflow:tensorflow-lite:2.9.0")
+    //implementation("org.tensorflow:tensorflow-lite-task-vision:0.3.1")
+    //implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0")
 }

@@ -1,5 +1,7 @@
 package com.example.hophacks2025app;
 
+import static org.opencv.android.Utils.matToBitmap;
+
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -20,6 +22,8 @@ import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.example.hophacks2025app.ml.JaundiceModelFp32;
+
 import org.opencv.android.CameraActivity;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
@@ -28,12 +32,21 @@ import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
+import org.tensorflow.lite.DataType;
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
 
 public class MainActivity extends CameraActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
     private static final int REQUEST_CODE_PERMISSIONS = 10;
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
     private static final String TAG = "MainActivity";
+    int _MLdimension = 224; //so image size to use for cnn is 224x224
+    float _MLtolerance = 0.1f; //tolerance value, if confidence is higher than this its jaundice
 
     //------FIND UI ELEMENTS------
     //for start screen
@@ -190,79 +203,172 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
     private void takePhoto() {
         captureButton.setEnabled(false);
-        Toast.makeText(this, "Analyzing photo...", Toast.LENGTH_SHORT).show();
+        //Toast.makeText(this, "Analyzing photo...", Toast.LENGTH_SHORT).show();
         isCapturing = true;
     }
 
     private void analyzeImage(Mat image) {
 
-        // Hide camera view and show still full-screen image view
-        takePhotoLayout.setVisibility(View.GONE);
-        //cameraView.setVisibility(View.GONE);
-        //capturedImageView.setVisibility(View.VISIBLE);
-        resultsLayout.setVisibility(View.VISIBLE);
-        //tryAgainButton.setVisibility(View.VISIBLE);
+        if (image.empty()) Log.d("MainActivity","image is empty?");
 
-        //analyzingText.setVisibility(View.VISIBLE);
-        //resultTextLayout.setVisibility(View.VISIBLE);
 
-        // Show captured image on the ImageView
-        Bitmap bmp = null;
+        // Convert image to Bmp, full res for display, full screen for preview on take photo screen
+        Bitmap previewBmp = null; //full screen ver take photo screen
         try {
-            bmp = Bitmap.createBitmap(image.width(), image.height(), Bitmap.Config.ARGB_8888);
-            org.opencv.android.Utils.matToBitmap(image, bmp);
-            //set both image views to visible to this bitmap
-            capturedImageView.setImageBitmap(bmp);
-            fullImageView.setImageBitmap(bmp);
+            previewBmp = Bitmap.createBitmap(image.width(), image.height(), Bitmap.Config.ARGB_8888);
+            org.opencv.android.Utils.matToBitmap(image, previewBmp);
+
+            //set caputured image view to this bitmap
+            capturedImageView.setImageBitmap(previewBmp);
+
 
         } catch (Exception e) {
             Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
         }
 
-//        cameraView.setVisibility(View.GONE);
-//        centerCircleOverlay.setVisibility(View.GONE);
-//        capturedImageView.setVisibility(View.VISIBLE);
+        //convert image to bmp, full res for display, square for results screen
+        Bitmap squareBmp = null; //square ver results screen
+        Mat centerSquareMat = null;
+        try {
+                        int width = image.width();
+            int height = image.height();
+            int sideLength = Math.min(width, height);
+            // 2. Calculate the starting coordinates (top-left corner) for the center square
+            int x = (width - sideLength) / 2;
+            int y = (height - sideLength) / 2;
+            //create a submatrix (ROI region of interest) for center square
+            Rect roi = new Rect(x, y, sideLength, sideLength);
+            //use the ROI to create a new Mat that is square!
+            centerSquareMat = new Mat(image, roi);
+            if (centerSquareMat.width() > 0 && centerSquareMat.height() > 0) {
+                squareBmp = Bitmap.createBitmap(centerSquareMat.width(), centerSquareMat.height(), Bitmap.Config.ARGB_8888);
+                org.opencv.android.Utils.matToBitmap(centerSquareMat, squareBmp);
+            } else {
+                Log.e("BitmapUtils", "Center square Mat has invalid dimensions after ROI creation.");
+                // This case should ideally not be hit if the original image dimensions are valid
+                // and sideLength is calculated correctly.
+            }
 
-        // Get average color of the center of the image
-        //will need to fit with cnn logic
-        int width = image.cols();
-        int height = image.rows();
-        int centerX = width / 2;
-        int centerY = height / 2;
-        int analysisSize = Math.min(width, height) / 4;
+            //set results image view to full resolution square
+            fullImageView.setImageBitmap(squareBmp);
 
-        Rect roi = new Rect(centerX - analysisSize / 2, centerY - analysisSize / 2, analysisSize, analysisSize);
-        Mat roiMat = new Mat(image, roi);
-        Scalar avgColor = Core.mean(roiMat);
+        } catch (Exception e) {
+            Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
+        }
 
-        double avgR = avgColor.val[0];
-        double avgG = avgColor.val[1];
-        double avgB = avgColor.val[2];
+        //now, show still fullscreen image view on top of the camera, and Analyzing text
+        capturedImageView.setVisibility(View.VISIBLE);
+        analyzingText.setVisibility(View.VISIBLE);
 
-        roiMat.release();
+        // Finally, hide camera view
+        cameraView.setVisibility(View.GONE);
 
+
+        //now that the display parts are done, lets run the ML on it
+        //we use squareBmp from before, and downsize
+        Bitmap square224Bmp = null;
+        square224Bmp = Bitmap.createScaledBitmap(squareBmp, _MLdimension, _MLdimension,false);
+
+        boolean hasJaundice = classifyImageIfJaundice(square224Bmp);
+
+
+        ////-----set jaundice severity and suggestions text
         // Simplified Jaundice detection logic based on Bili-Tool color charts
-        String severity;
+        String result;
         String suggestions;
+
+        double avgR = 0.0, avgG = 0.0, avgB = 0.0; //initialize for stuff
 
         double rG_ratio = avgR / avgG;
 
-        if (rG_ratio > 1.2 && avgB < 100) {
-            severity = "No Jaundice Detected";
+        if (!hasJaundice) {
+            result = "No Jaundice Detected";
             suggestions = "The skin tone appears normal. Continue to monitor for any changes.";
-        } else if (rG_ratio >= 1.05 && rG_ratio <= 1.2 && avgB < 120) {
-            severity = "Mild Jaundice";
-            suggestions = "Provide frequent feedings (8-12 times a day). Place the baby in a well-lit room with indirect sunlight. Contact your pediatrician for a professional opinion.";
         } else {
-            severity = "Moderate to Severe Jaundice";
+            result = "Jaundice Detected";
             suggestions = "This requires immediate medical attention. Go to the nearest hospital or call emergency services immediately. Do not rely on home remedies.";
         }
 
-        // Display results and show the "Try Again" button
-        resultText.setText("Preliminary Assessment: " + severity);
+
+
+        // Display resultsLayout and show the "Try Again" button
+        takePhotoLayout.setVisibility(View.GONE);
+        resultsLayout.setVisibility(View.VISIBLE);
+        resultText.setText("Preliminary Assessment: " + result);
         suggestionsText.setText(suggestions);
         //captureButton.setVisibility(View.GONE);
 
+    }
+
+    public boolean classifyImageIfJaundice(Bitmap image){
+
+        //according to https://www.youtube.com/watch?v=yV9nrRIC_R0&ab_channel=IJApps
+        try {
+            JaundiceModelFp32 model = JaundiceModelFp32.newInstance(getApplicationContext());
+
+            // Creates inputs for reference.
+            TensorBuffer inputFeature0 = TensorBuffer.createFixedSize(new int[]{1, _MLdimension, _MLdimension, 3}, DataType.FLOAT32);
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * _MLdimension * _MLdimension * 3);
+            byteBuffer.order(ByteOrder.nativeOrder());
+
+            int[] intValues = new int[_MLdimension*_MLdimension];
+            image.getPixels(intValues, 0, image.getWidth(), 0,0, image.getWidth(), image.getHeight());
+
+            int pixel=0;
+
+            //iterate over each pixel and extract RGB values. add those values to byte buffer
+            for (int i = 0; i < _MLdimension; i++){
+                for (int j = 0; j < _MLdimension; j++){
+                    int val = intValues[pixel++]; //RGB together
+                    byteBuffer.putFloat(((val >> 16) & 0xFF) * (1.f / 1));
+                    byteBuffer.putFloat(((val >> 8) & 0xFF) * (1.f / 1));
+                    byteBuffer.putFloat((val  & 0xFF) * (1.f / 1));
+
+                }
+            }
+
+            inputFeature0.loadBuffer(byteBuffer);
+
+            // Runs model inference and gets result.
+            JaundiceModelFp32.Outputs outputs = model.process(inputFeature0);
+            TensorBuffer outputFeature0 = outputs.getOutputFeature0AsTensorBuffer();
+
+
+
+
+
+            ///----assumed there was 2 categories, jaundice and no jaundice
+//            //only 2 categories, pos 0 is normal, pos 1 is jaundice
+//            float[] confidences = outputFeature0.getFloatArray();
+//            Log.d(TAG, "confidences array: " + Arrays.toString(confidences));
+//
+//            if (confidences[1] > confidences[0]){ //if jaundice val greater than normal val
+//                //Releases model resources if no longer used
+//                model.close();
+//                return true; //return true, jaundice detected
+//            } //otherwise, jaundice val is less than or equal to normal val
+            //----------end of jaundice/nojaundice assumption
+
+
+            float[] confidences = outputFeature0.getFloatArray();
+            Log.d(TAG, "confidences array: " + Arrays.toString(confidences));
+            if (confidences[0] > _MLtolerance) { //if jaundice val greater than tolerance
+                //its positive
+                // Releases model resources if no longer used.
+                model.close();
+                return true;
+            } //otherwise, jaundice val is lower than tolerance
+            //its negative
+
+
+
+            // Releases model resources if no longer used.
+            model.close();
+            return false; //return false, jaundice not detected
+        } catch (IOException e) {
+            // TODO Handle the exception
+        }
+        return false;
     }
 
     private void uploadImage(){
@@ -326,4 +432,8 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
             cameraView.disableView();
         }
     }
+
+
+
+
 }
