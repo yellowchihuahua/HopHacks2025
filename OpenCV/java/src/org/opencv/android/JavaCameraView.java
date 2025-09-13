@@ -189,8 +189,7 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
                     }
 
                     if ((getLayoutParams().width == LayoutParams.MATCH_PARENT) && (getLayoutParams().height == LayoutParams.MATCH_PARENT))
-                        //stretch to fit size of screen - edited Joy 9/12
-                        mScale = Math.max(((float)height)/mFrameHeight, ((float)width)/mFrameWidth);
+                        mScale = Math.min(((float)height)/mFrameHeight, ((float)width)/mFrameWidth);
                     else
                         mScale = 0;
 

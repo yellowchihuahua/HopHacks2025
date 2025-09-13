@@ -46,7 +46,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
     private static final String TAG = "MainActivity";
     int _MLdimension = 224; //so image size to use for cnn is 224x224
-    float _MLtolerance = 0.1f; //tolerance value, if confidence is higher than this its jaundice
+    float _MLtolerance = 0.01f; //tolerance value, if confidence is higher than this its jaundice
 
     //------FIND UI ELEMENTS------
     //for start screen
@@ -320,9 +320,9 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
             for (int i = 0; i < _MLdimension; i++){
                 for (int j = 0; j < _MLdimension; j++){
                     int val = intValues[pixel++]; //RGB together
-                    byteBuffer.putFloat(((val >> 16) & 0xFF) * (1.f / 1));
-                    byteBuffer.putFloat(((val >> 8) & 0xFF) * (1.f / 1));
-                    byteBuffer.putFloat((val  & 0xFF) * (1.f / 1));
+                    byteBuffer.putFloat(((val >> 16) & 0xFF) * (1.f / 255));
+                    byteBuffer.putFloat(((val >> 8) & 0xFF) * (1.f / 255));
+                    byteBuffer.putFloat((val  & 0xFF) * (1.f / 255));
 
                 }
             }
@@ -380,6 +380,11 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private void openCamera(){
         //set camera layout to visible
         takePhotoLayout.setVisibility(View.VISIBLE);
+        cameraView.setVisibility(View.VISIBLE);
+        cameraView.enableView();
+        capturedImageView.setVisibility(View.GONE);
+        analyzingText.setVisibility(View.GONE);
+        //centerCircleOverlay.setVisibility(View.VISIBLE);
 
         //set start layout to invisible
         startLayout.setVisibility(View.GONE);
