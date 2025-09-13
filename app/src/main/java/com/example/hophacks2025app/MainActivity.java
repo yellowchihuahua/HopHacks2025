@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -44,8 +45,10 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private LinearLayout resultLayout;
     private TextView resultText;
     private TextView suggestionsText;
+    private View centerCircleOverlay;
 
     private Mat capturedFrame;
+    private Mat mRGBA;
     private boolean isCapturing = false;
 
     @Override
@@ -53,28 +56,36 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+
+
+
         // Find UI elements…
-        cameraView = findViewById(R.id.camera_view);
-        //capturedImageView = findViewById(R.id.captured_image_view);
+        cameraView = (JavaCameraView) findViewById(R.id.camera_view);
+        capturedImageView = findViewById(R.id.captured_image_view);
         captureButton = findViewById(R.id.capture_button);
         tryAgainButton = findViewById(R.id.try_again_button);
         resultLayout = findViewById(R.id.result_layout);
+        centerCircleOverlay = findViewById(R.id.center_circle_overlay);
         resultText = findViewById(R.id.result_text);
         suggestionsText = findViewById(R.id.suggestions_text);
 
         // Check for camera permissions
         if (allPermissionsGranted()) {
+            cameraView.setCameraPermissionGranted();
             loadOpenCV();
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
         }
 
-        cameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_FRONT);
-        cameraView.setVisibility(View.VISIBLE);
+        cameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_BACK);
+        cameraView.setVisibility(SurfaceView.VISIBLE);
         cameraView.setCvCameraViewListener(this);
 
         captureButton.setOnClickListener(v -> takePhoto());
         tryAgainButton.setOnClickListener(v -> resetApp());
+
+        //run reset first
+        resetApp();
     }
 
     private void loadOpenCV() {
@@ -83,7 +94,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
             Toast.makeText(this, "OpenCV Initialization Failed!", Toast.LENGTH_LONG).show();
         } else {
             Log.d(TAG, "OpenCV Initialization Successful!");
-            cameraView.enableView();
+            //cameraView.enableView();
         }
     }
 
@@ -113,29 +124,30 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
     @Override
     public void onCameraViewStarted(int width, int height) {
-        capturedFrame = new Mat(height, width, CvType.CV_8UC4);
+        //capturedFrame = new Mat(height, width, CvType.CV_8UC4);
     }
 
     @Override
     public void onCameraViewStopped() {
-        if (capturedFrame != null) {
-            capturedFrame.release();
-        }
+        mRGBA.release();
+//        if (capturedFrame != null) {
+//            capturedFrame.release();
+//        }
     }
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        Mat rgba = inputFrame.rgba();
+        mRGBA = inputFrame.rgba();
 
         if (isCapturing) {
-            capturedFrame = rgba;
+            capturedFrame = mRGBA;
             isCapturing = false;
             runOnUiThread(() -> {
                 analyzeImage(capturedFrame);
                 captureButton.setEnabled(true);
             });
         }
-        return rgba;
+        return mRGBA;
     }
 
     // --- Main Application Logic ---
@@ -148,22 +160,25 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
     private void analyzeImage(Mat image) {
         // Hide camera view and show result layout
-        cameraView.setVisibility(View.GONE);
+        //cameraView.setVisibility(View.GONE);
         resultLayout.setVisibility(View.VISIBLE);
 
         // Show captured image on the ImageView
         Bitmap bmp = null;
         try {
-            bmp = Bitmap.createBitmap(image.cols(), image.rows(), Bitmap.Config.ARGB_8888);
+            bmp = Bitmap.createBitmap(image.width(), image.height(), Bitmap.Config.ARGB_8888);
             org.opencv.android.Utils.matToBitmap(image, bmp);
             capturedImageView.setImageBitmap(bmp);
         } catch (Exception e) {
             Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
         }
 
+        cameraView.setVisibility(View.GONE);
+        centerCircleOverlay.setVisibility(View.GONE);
         capturedImageView.setVisibility(View.VISIBLE);
 
         // Get average color of the center of the image
+        //will need to fit with cnn logic
         int width = image.cols();
         int height = image.rows();
         int centerX = width / 2;
@@ -208,6 +223,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         // Reset UI to initial state
         cameraView.setVisibility(View.VISIBLE);
         capturedImageView.setVisibility(View.GONE);
+        centerCircleOverlay.setVisibility(View.VISIBLE);
         resultLayout.setVisibility(View.GONE);
         captureButton.setVisibility(View.VISIBLE);
         tryAgainButton.setVisibility(View.GONE);

@@ -1,2 +1,2 @@
-ninja: Entering directory `/Users/minse/Downloads/HopHacks2025/OpenCV/.cxx/Debug/5n312735/arm64-v8a'
+ninja: Entering directory `C:\Users\linc7\Documents\GitHub\HopHacks2025\OpenCV\.cxx\Debug\5n312735\arm64-v8a'
 ninja: no work to do.
