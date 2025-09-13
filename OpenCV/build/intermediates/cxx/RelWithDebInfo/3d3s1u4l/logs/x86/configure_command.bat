@@ -1,0 +1,19 @@
+@echo off
+"C:\\Users\\linc7\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\cmake.exe" ^
+  "-HC:\\Users\\linc7\\Documents\\GitHub\\HopHacks2025\\OpenCV\\libcxx_helper" ^
+  "-DCMAKE_SYSTEM_NAME=Android" ^
+  "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON" ^
+  "-DCMAKE_SYSTEM_VERSION=21" ^
+  "-DANDROID_PLATFORM=android-21" ^
+  "-DANDROID_ABI=x86" ^
+  "-DCMAKE_ANDROID_ARCH_ABI=x86" ^
+  "-DANDROID_NDK=C:\\Users\\linc7\\AppData\\Local\\Android\\Sdk\\ndk\\26.1.10909125" ^
+  "-DCMAKE_ANDROID_NDK=C:\\Users\\linc7\\AppData\\Local\\Android\\Sdk\\ndk\\26.1.10909125" ^
+  "-DCMAKE_TOOLCHAIN_FILE=C:\\Users\\linc7\\AppData\\Local\\Android\\Sdk\\ndk\\26.1.10909125\\build\\cmake\\android.toolchain.cmake" ^
+  "-DCMAKE_MAKE_PROGRAM=C:\\Users\\linc7\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe" ^
+  "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=C:\\Users\\linc7\\Documents\\GitHub\\HopHacks2025\\OpenCV\\build\\intermediates\\cxx\\RelWithDebInfo\\3d3s1u4l\\obj\\x86" ^
+  "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=C:\\Users\\linc7\\Documents\\GitHub\\HopHacks2025\\OpenCV\\build\\intermediates\\cxx\\RelWithDebInfo\\3d3s1u4l\\obj\\x86" ^
+  "-DCMAKE_BUILD_TYPE=RelWithDebInfo" ^
+  "-BC:\\Users\\linc7\\Documents\\GitHub\\HopHacks2025\\OpenCV\\.cxx\\RelWithDebInfo\\3d3s1u4l\\x86" ^
+  -GNinja ^
+  "-DANDROID_STL=c++_shared"

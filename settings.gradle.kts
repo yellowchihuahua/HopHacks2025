@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "HopHacks2025App"
 include(":app")
- 
+include(":OpenCV")
