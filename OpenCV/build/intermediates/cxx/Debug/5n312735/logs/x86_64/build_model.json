@@ -144,7 +144,7 @@
         "rootBuildGradleFolder": "C:\\Users\\linc7\\Documents\\GitHub\\HopHacks2025",
         "sdkFolder": "C:\\Users\\linc7\\AppData\\Local\\Android\\Sdk",
         "isBuildOnlyTargetAbiEnabled": true,
-        "ideBuildTargetAbi": "x86_64,arm64-v8a",
+        "ideBuildTargetAbi": "x86_64",
         "isCmakeBuildCohabitationEnabled": false,
         "isPrefabEnabled": false
       },

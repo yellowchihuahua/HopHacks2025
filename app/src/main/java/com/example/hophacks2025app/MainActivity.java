@@ -3,34 +3,31 @@ package com.example.hophacks2025app;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.cardview.widget.CardView;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
-import com.example.hophacks2025app.R;
 
 import org.opencv.android.CameraActivity;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Core;
-import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
-import org.opencv.imgproc.Imgproc;
 
 public class MainActivity extends CameraActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
@@ -38,14 +35,31 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
     private static final String TAG = "MainActivity";
 
+    //------FIND UI ELEMENTS------
+    //for start screen
+    private ConstraintLayout startLayout;
+    private Button openCameraButton;
+    private Button uploadImageButton;
+
+
+    //for take photo screen
+    private FrameLayout takePhotoLayout;
     private JavaCameraView cameraView;
     private ImageView capturedImageView;
     private Button captureButton;
+    private TextView analyzingText;
+    private View centerCircleOverlay;
+
+    //for results screen
+    private ConstraintLayout resultsLayout;
+    private CardView fullImageViewCard;
+    private ImageView fullImageView;
     private Button tryAgainButton;
-    private LinearLayout resultLayout;
+    private LinearLayout resultTextLayout;
     private TextView resultText;
     private TextView suggestionsText;
-    private View centerCircleOverlay;
+
+    //------END FIND UI ELEMENTS
 
     private Mat capturedFrame;
     private Mat mRGBA;
@@ -59,15 +73,34 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
 
 
-        // Find UI elements…
+        // -------- ASSIGN UI ELEMENTS---------
+
+        //start screen
+        startLayout = findViewById(R.id.start_layout);
+        openCameraButton = findViewById(R.id.open_camera_button);
+        uploadImageButton = findViewById(R.id.upload_image_button);
+
+
+        //for take photo screen
+        takePhotoLayout = findViewById(R.id.take_photo_layout);
         cameraView = (JavaCameraView) findViewById(R.id.camera_view);
         capturedImageView = findViewById(R.id.captured_image_view);
         captureButton = findViewById(R.id.capture_button);
-        tryAgainButton = findViewById(R.id.try_again_button);
-        resultLayout = findViewById(R.id.result_layout);
+        analyzingText = findViewById(R.id.analyzing_text);
         centerCircleOverlay = findViewById(R.id.center_circle_overlay);
+
+
+        //for results screen
+        resultsLayout = findViewById(R.id.results_layout);
+        fullImageViewCard = findViewById(R.id.full_image_view_card);
+        fullImageView = findViewById(R.id.full_image_view);
+        resultTextLayout = findViewById(R.id.result_text_layout);
         resultText = findViewById(R.id.result_text);
         suggestionsText = findViewById(R.id.suggestions_text);
+        tryAgainButton = findViewById(R.id.try_again_button);
+        // -------- END ASSIGN UI ELEMENTS---------
+
+
 
         // Check for camera permissions
         if (allPermissionsGranted()) {
@@ -81,10 +114,13 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         cameraView.setVisibility(SurfaceView.VISIBLE);
         cameraView.setCvCameraViewListener(this);
 
+        //link all buttons
         captureButton.setOnClickListener(v -> takePhoto());
         tryAgainButton.setOnClickListener(v -> resetApp());
+        openCameraButton.setOnClickListener(v -> openCamera());
 
-        //run reset first
+
+        //run reset first to show start screen
         resetApp();
     }
 
@@ -159,23 +195,33 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     }
 
     private void analyzeImage(Mat image) {
-        // Hide camera view and show result layout
+
+        // Hide camera view and show still full-screen image view
+        takePhotoLayout.setVisibility(View.GONE);
         //cameraView.setVisibility(View.GONE);
-        resultLayout.setVisibility(View.VISIBLE);
+        //capturedImageView.setVisibility(View.VISIBLE);
+        resultsLayout.setVisibility(View.VISIBLE);
+        //tryAgainButton.setVisibility(View.VISIBLE);
+
+        //analyzingText.setVisibility(View.VISIBLE);
+        //resultTextLayout.setVisibility(View.VISIBLE);
 
         // Show captured image on the ImageView
         Bitmap bmp = null;
         try {
             bmp = Bitmap.createBitmap(image.width(), image.height(), Bitmap.Config.ARGB_8888);
             org.opencv.android.Utils.matToBitmap(image, bmp);
+            //set both image views to visible to this bitmap
             capturedImageView.setImageBitmap(bmp);
+            fullImageView.setImageBitmap(bmp);
+
         } catch (Exception e) {
             Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
         }
 
-        cameraView.setVisibility(View.GONE);
-        centerCircleOverlay.setVisibility(View.GONE);
-        capturedImageView.setVisibility(View.VISIBLE);
+//        cameraView.setVisibility(View.GONE);
+//        centerCircleOverlay.setVisibility(View.GONE);
+//        capturedImageView.setVisibility(View.VISIBLE);
 
         // Get average color of the center of the image
         //will need to fit with cnn logic
@@ -215,19 +261,46 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         // Display results and show the "Try Again" button
         resultText.setText("Preliminary Assessment: " + severity);
         suggestionsText.setText(suggestions);
-        captureButton.setVisibility(View.GONE);
-        tryAgainButton.setVisibility(View.VISIBLE);
+        //captureButton.setVisibility(View.GONE);
+
     }
 
-    private void resetApp() {
-        // Reset UI to initial state
-        cameraView.setVisibility(View.VISIBLE);
-        capturedImageView.setVisibility(View.GONE);
-        centerCircleOverlay.setVisibility(View.VISIBLE);
-        resultLayout.setVisibility(View.GONE);
-        captureButton.setVisibility(View.VISIBLE);
-        tryAgainButton.setVisibility(View.GONE);
-        captureButton.setEnabled(true);
+    private void uploadImage(){
+        //logic to upload image
+        //then go to results screen???
+        Toast.makeText(this, "File upload dialog opened", Toast.LENGTH_SHORT).show();
+    }
+
+    private void openCamera(){
+        //set camera layout to visible
+        takePhotoLayout.setVisibility(View.VISIBLE);
+
+        //set start layout to invisible
+        startLayout.setVisibility(View.GONE);
+
+        //set results layout to invisible
+        resultsLayout.setVisibility(View.GONE);
+    }
+
+    private void resetApp() { //used by "Try again" button in results screen
+        //set start layout to visible
+        startLayout.setVisibility(View.VISIBLE);
+
+        //set camera layout to invisible
+        takePhotoLayout.setVisibility(View.GONE);
+
+        //set results layout to invisible
+        resultsLayout.setVisibility(View.GONE);
+
+
+//        // Reset UI to initial state
+//        cameraView.setVisibility(View.VISIBLE);
+//        capturedImageView.setVisibility(View.GONE);
+//        centerCircleOverlay.setVisibility(View.VISIBLE);
+//        resultTextLayout.setVisibility(View.GONE);
+//        captureButton.setVisibility(View.VISIBLE);
+//        tryAgainButton.setVisibility(View.GONE);
+//        captureButton.setEnabled(true);
     }
 
     @Override
