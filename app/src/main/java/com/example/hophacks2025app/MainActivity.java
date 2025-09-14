@@ -67,7 +67,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     //------FIND UI ELEMENTS------
     //for start screen
     private ConstraintLayout startLayout;
-    private ImageView logoView;
     private ImageView bodyIconImgView;
     private ImageView openCameraBodyButton;
     private ImageView uploadImageBodyButton;
@@ -84,7 +83,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     //for take photo screen
     private FrameLayout takePhotoLayout;
     private JavaCameraView cameraView;
-    private ImageView capturedImageView;
     private Button captureButton;
     private TextView analyzingText;
     private View centerCircleOverlay;
@@ -116,7 +114,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         //start screen
         startLayout = findViewById(R.id.start_layout);
-        logoView = findViewById(R.id.logo_img_view);
         bodyIconImgView = findViewById(R.id.body_icon_img_view);
         openCameraBodyButton = findViewById(R.id.open_camera_body_button);
         uploadImageBodyButton = findViewById(R.id.upload_image_body_button);
@@ -132,7 +129,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         //for take photo screen
         takePhotoLayout = findViewById(R.id.take_photo_layout);
         cameraView = (JavaCameraView) findViewById(R.id.camera_view);
-        capturedImageView = findViewById(R.id.captured_image_view);
         captureButton = findViewById(R.id.capture_button);
         analyzingText = findViewById(R.id.analyzing_text);
         centerCircleOverlay = findViewById(R.id.center_circle_overlay);
@@ -281,7 +277,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
             }
 
             //set results image view to full resolution square
-            capturedImageView.setImageBitmap(squareBmp);
             fullImageView.setImageBitmap(squareBmp);
 
         } catch (Exception e) {
@@ -294,7 +289,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private void analyzeImages(Bitmap squareBmp) {
 
         //now, show still fullscreen image view on top of the camera, and Analyzing text
-        capturedImageView.setVisibility(View.VISIBLE);
         analyzingText.setVisibility(View.VISIBLE);
 
         // Finally, hide camera view
@@ -316,10 +310,10 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         if (!hasJaundice) {
             result = "No Jaundice Detected";
-            suggestions = "The skin tone appears normal. Continue to monitor for any changes.";
+            suggestions = "Your baby does not appear to have jaundice, and their skin tone appears normal. Please continue to monitor for any changes.";
         } else {
             result = "Jaundice Detected";
-            suggestions = "This requires immediate medical attention. Go to the nearest hospital or call emergency services immediately. Do not rely on home remedies.";
+            suggestions = "Your baby has signs pointing towards jaundice. We recommend seeking medical attention for a confirmatory diagnosis.";
         }
 
 
@@ -507,7 +501,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         captureButton.setEnabled(true);
         cameraView.enableView();
 
-        capturedImageView.setVisibility(View.GONE);
         analyzingText.setVisibility(View.GONE);
         //centerCircleOverlay.setVisibility(View.VISIBLE);
 
@@ -553,7 +546,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         //set start layout to visible
         startLayout.setVisibility(View.VISIBLE);
-        logoView.setVisibility(View.VISIBLE);
 
 
         //set camera layout to invisible
