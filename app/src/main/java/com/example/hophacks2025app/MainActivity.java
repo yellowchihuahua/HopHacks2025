@@ -3,9 +3,14 @@ package com.example.hophacks2025app;
 import static org.opencv.android.Utils.matToBitmap;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.ImageDecoder;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.View;
@@ -17,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.cardview.widget.CardView;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
@@ -28,6 +34,7 @@ import org.opencv.android.CameraActivity;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
@@ -42,6 +49,7 @@ import java.util.Arrays;
 
 public class MainActivity extends CameraActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
 
+    private static final int REQUEST_CODE_SELECT_IMAGE = 100;
     private static final int REQUEST_CODE_PERMISSIONS = 10;
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
     private static final String TAG = "MainActivity";
@@ -129,6 +137,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         //link all buttons
         captureButton.setOnClickListener(v -> takePhoto());
+        uploadImageButton.setOnClickListener(v -> uploadImage());
         tryAgainButton.setOnClickListener(v -> resetApp());
         openCameraButton.setOnClickListener(v -> openCamera());
 
@@ -192,7 +201,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
             capturedFrame = mRGBA;
             isCapturing = false;
             runOnUiThread(() -> {
-                analyzeImage(capturedFrame);
+                analyzeImage(capturedFrame, 0);
                 captureButton.setEnabled(true);
             });
         }
@@ -207,7 +216,8 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         isCapturing = true;
     }
 
-    private void analyzeImage(Mat image) {
+    //sourceView is 0 for camera, 1 for files
+    private void analyzeImage(Mat image, int sourceView) {
 
         if (image.empty()) Log.d("MainActivity","image is empty?");
 
@@ -256,6 +266,8 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
             Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
         }
 
+        //if we are coming from camera
+
         //now, show still fullscreen image view on top of the camera, and Analyzing text
         capturedImageView.setVisibility(View.VISIBLE);
         analyzingText.setVisibility(View.VISIBLE);
@@ -276,10 +288,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         // Simplified Jaundice detection logic based on Bili-Tool color charts
         String result;
         String suggestions;
-
-        double avgR = 0.0, avgG = 0.0, avgB = 0.0; //initialize for stuff
-
-        double rG_ratio = avgR / avgG;
 
         if (!hasJaundice) {
             result = "No Jaundice Detected";
@@ -374,7 +382,57 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private void uploadImage(){
         //logic to upload image
         //then go to results screen???
+
+        Intent intent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        startActivityForResult(intent, REQUEST_CODE_SELECT_IMAGE);
         Toast.makeText(this, "File upload dialog opened", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_CODE_SELECT_IMAGE && resultCode == RESULT_OK && data != null) {
+            Uri selectedImageUri = data.getData();
+
+            if (selectedImageUri != null) {
+                // Convert to Bitmap
+                Bitmap bitmap = uriToBitmap(selectedImageUri);
+
+                if (bitmap != null) {
+                    // Show in ImageView
+                    fullImageView.setImageBitmap(bitmap);
+                    analyzeImage(bitmapToMat(bitmap), 1);
+                }
+            }
+        }
+    }
+
+    private Mat bitmapToMat(Bitmap bitmap) {
+        Mat mat = new Mat();
+        Bitmap bmp32 = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+        Utils.bitmapToMat(bmp32, mat);
+
+        return mat;
+
+    }
+
+
+
+    private Bitmap uriToBitmap(Uri uri) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // For Android 9 (Pie) and above
+                ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), uri);
+                return ImageDecoder.decodeBitmap(source);
+            } else {
+                // For older devices
+                return MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private void openCamera(){
