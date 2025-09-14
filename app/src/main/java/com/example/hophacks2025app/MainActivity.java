@@ -53,7 +53,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
     private static final String TAG = "MainActivity";
     int _MLdimension = 224; //so image size to use for cnn is 224x224
-    float _MLtolerance = 0.01f; //tolerance value, if confidence is higher than this its jaundice
+    float _MLtolerance = 0.0005f; //tolerance value, if confidence is higher than this its jaundice
 
 
     enum Subject {

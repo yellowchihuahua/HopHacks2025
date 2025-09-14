@@ -1031,3 +1031,13 @@ OpenCV/build/tmp/compileDebugJavaWithJavac/compileTransaction/stash-dir/JavaCame
 OpenCV/build/tmp/compileDebugJavaWithJavac/compileTransaction/stash-dir/JavaCameraView$JavaCameraSizeAccessor.class.uniqueId2
 OpenCV/build/tmp/compileDebugJavaWithJavac/compileTransaction/stash-dir/JavaCameraView.class.uniqueId0
 OpenCV/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin
+*.txt
+*.json
+*.a
+*.properties
+OpenCV/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+*.so
+OpenCV/build/intermediates/prefab_package_header_only/prefab_publication.json/debug
+OpenCV/build/intermediates/prefab_package_header_only/prefab_publication.json/release
+OpenCV/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin
+OpenCV/build/outputs/logs/manifest-merger-debug-report.txt
