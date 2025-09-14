@@ -447,6 +447,8 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
                             _feetBitmap = bitmap;
                             break;
                     }
+
+                    resetApp();
                     // Show in results screen
                     //fullImageView.setImageBitmap(bitmap);
                     //Mat nonSquareImage = bitmapToMat(bitmap);
