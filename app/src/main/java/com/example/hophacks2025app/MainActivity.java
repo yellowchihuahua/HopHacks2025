@@ -513,6 +513,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
     private void newAnalysis(){
         _bodyBitmap = null;
+        _currentSubject = Subject.FullBody;
         _eyesBitmap = null;
         _feetBitmap = null;
 
