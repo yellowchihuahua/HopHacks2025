@@ -85,7 +85,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     private JavaCameraView cameraView;
     private Button captureButton;
     private TextView analyzingText;
-    private View centerCircleOverlay;
 
     //for results screen
     private ConstraintLayout resultsLayout;
@@ -131,7 +130,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         cameraView = (JavaCameraView) findViewById(R.id.camera_view);
         captureButton = findViewById(R.id.capture_button);
         analyzingText = findViewById(R.id.analyzing_text);
-        centerCircleOverlay = findViewById(R.id.center_circle_overlay);
 
 
         //for results screen
@@ -171,7 +169,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         captureButton.setOnClickListener(v -> takePhoto());
         uploadImageBodyButton.setOnClickListener(v -> uploadImage());
-        tryAgainButton.setOnClickListener(v -> resetApp());
+        tryAgainButton.setOnClickListener(v -> newAnalysis());
 
         //run reset first to show start screen
         resetApp();
@@ -511,6 +509,13 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         resultsLayout.setVisibility(View.GONE);
     }
 
+    private void newAnalysis(){
+        _bodyBitmap = null;
+        _eyesBitmap = null;
+        _feetBitmap = null;
+
+        resetApp();
+    }
     private void resetApp() { //used by "Try again" button in results screen
 
         boolean isAbleToAnalyse=true;
