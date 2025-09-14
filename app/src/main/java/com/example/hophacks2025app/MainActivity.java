@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.ImageDecoder;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,10 +36,8 @@ import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
-import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
-import org.opencv.core.Scalar;
 import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
 
@@ -56,11 +55,30 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     int _MLdimension = 224; //so image size to use for cnn is 224x224
     float _MLtolerance = 0.01f; //tolerance value, if confidence is higher than this its jaundice
 
+
+    enum Subject {
+        FullBody, Eyes, Feet
+    }
+    private Subject _currentSubject = Subject.FullBody;
+    private Bitmap _bodyBitmap = null;
+    private Bitmap _eyesBitmap = null;
+    private Bitmap _feetBitmap = null;
+
     //------FIND UI ELEMENTS------
     //for start screen
     private ConstraintLayout startLayout;
-    private Button openCameraButton;
-    private Button uploadImageButton;
+    private ImageView logoView;
+    private ImageView bodyIconImgView;
+    private ImageView openCameraBodyButton;
+    private ImageView uploadImageBodyButton;
+    private ImageView eyesIconImgView;
+    private ImageView openCameraEyesButton;
+    private ImageView uploadImageEyesButton;
+    private ImageView feetIconImgView;
+    private ImageView openCameraFeetButton;
+    private ImageView uploadImageFeetButton;
+    private Button analyzeImageButton;
+
 
 
     //for take photo screen
@@ -98,8 +116,17 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         //start screen
         startLayout = findViewById(R.id.start_layout);
-        openCameraButton = findViewById(R.id.open_camera_button);
-        uploadImageButton = findViewById(R.id.upload_image_button);
+        logoView = findViewById(R.id.logo_img_view);
+        bodyIconImgView = findViewById(R.id.body_icon_img_view);
+        openCameraBodyButton = findViewById(R.id.open_camera_body_button);
+        uploadImageBodyButton = findViewById(R.id.upload_image_body_button);
+        eyesIconImgView = findViewById(R.id.eyes_icon_img_view);
+        openCameraEyesButton = findViewById(R.id.open_camera_eyes_button);
+        uploadImageEyesButton = findViewById(R.id.upload_image_eyes_button);
+        feetIconImgView = findViewById(R.id.feet_icon_img_view);
+        openCameraFeetButton = findViewById(R.id.open_camera_feet_button);
+        uploadImageFeetButton = findViewById(R.id.upload_image_feet_button);
+        analyzeImageButton = findViewById(R.id.analyze_image_button);
 
 
         //for take photo screen
@@ -136,11 +163,19 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         cameraView.setCvCameraViewListener(this);
 
         //link all buttons
-        captureButton.setOnClickListener(v -> takePhoto());
-        uploadImageButton.setOnClickListener(v -> uploadImage());
-        tryAgainButton.setOnClickListener(v -> resetApp());
-        openCameraButton.setOnClickListener(v -> openCamera());
 
+        openCameraBodyButton.setOnClickListener(v -> openBodyCamera());
+        openCameraEyesButton.setOnClickListener(v -> openEyesCamera());
+        openCameraFeetButton.setOnClickListener(v -> openFeetCamera());
+        uploadImageBodyButton.setOnClickListener(v -> uploadBodyImage());
+        uploadImageEyesButton.setOnClickListener(v -> uploadEyesImage());
+        uploadImageFeetButton.setOnClickListener(v -> uploadFeetImage());
+        analyzeImageButton.setOnClickListener(v -> analyzeImageButtonPressed());
+
+
+        captureButton.setOnClickListener(v -> takePhoto());
+        uploadImageBodyButton.setOnClickListener(v -> uploadImage());
+        tryAgainButton.setOnClickListener(v -> resetApp());
 
         //run reset first to show start screen
         resetApp();
@@ -188,9 +223,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     @Override
     public void onCameraViewStopped() {
         mRGBA.release();
-//        if (capturedFrame != null) {
-//            capturedFrame.release();
-//        }
     }
 
     @Override
@@ -199,11 +231,19 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         if (isCapturing) {
             capturedFrame = mRGBA;
+            switch (_currentSubject) {
+                case FullBody:
+                    _bodyBitmap = matToSquareBitmap(capturedFrame);
+                    break;
+                case Eyes:
+                    _eyesBitmap = matToSquareBitmap(capturedFrame);
+                    break;
+                case Feet:
+                    _feetBitmap = matToSquareBitmap(capturedFrame);
+                    break;
+            }
             isCapturing = false;
-            runOnUiThread(() -> {
-                analyzeImage(capturedFrame, 0);
-                captureButton.setEnabled(true);
-            });
+            runOnUiThread(() -> resetApp());
         }
         return mRGBA;
     }
@@ -212,35 +252,16 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
     private void takePhoto() {
         captureButton.setEnabled(false);
-        //Toast.makeText(this, "Analyzing photo...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Photo Taken!", Toast.LENGTH_SHORT).show();
         isCapturing = true;
     }
 
-    //sourceView is 0 for camera, 1 for files
-    private void analyzeImage(Mat image, int sourceView) {
-
-        if (image.empty()) Log.d("MainActivity","image is empty?");
-
-
-        // Convert image to Bmp, full res for display, full screen for preview on take photo screen
-        Bitmap previewBmp = null; //full screen ver take photo screen
-        try {
-            previewBmp = Bitmap.createBitmap(image.width(), image.height(), Bitmap.Config.ARGB_8888);
-            org.opencv.android.Utils.matToBitmap(image, previewBmp);
-
-            //set caputured image view to this bitmap
-            capturedImageView.setImageBitmap(previewBmp);
-
-
-        } catch (Exception e) {
-            Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
-        }
-
+    private Bitmap matToSquareBitmap(Mat image){
         //convert image to bmp, full res for display, square for results screen
         Bitmap squareBmp = null; //square ver results screen
         Mat centerSquareMat = null;
         try {
-                        int width = image.width();
+            int width = image.width();
             int height = image.height();
             int sideLength = Math.min(width, height);
             // 2. Calculate the starting coordinates (top-left corner) for the center square
@@ -260,13 +281,17 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
             }
 
             //set results image view to full resolution square
+            capturedImageView.setImageBitmap(squareBmp);
             fullImageView.setImageBitmap(squareBmp);
 
         } catch (Exception e) {
             Log.e(TAG, "Mat to Bitmap conversion failed: " + e.getMessage());
         }
+        return squareBmp;
+    }
 
-        //if we are coming from camera
+    //sourceView is 0 for camera, 1 for files
+    private void analyzeImages(Bitmap squareBmp) {
 
         //now, show still fullscreen image view on top of the camera, and Analyzing text
         capturedImageView.setVisibility(View.VISIBLE);
@@ -301,6 +326,7 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
 
         // Display resultsLayout and show the "Try Again" button
         takePhotoLayout.setVisibility(View.GONE);
+        startLayout.setVisibility(View.GONE);
         resultsLayout.setVisibility(View.VISIBLE);
         resultText.setText("Preliminary Assessment: " + result);
         suggestionsText.setText(suggestions);
@@ -378,6 +404,23 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         }
         return false;
     }
+    private void analyzeImageButtonPressed(){
+        Mat nonSquareImg = bitmapToMat(_bodyBitmap);
+        analyzeImages(matToSquareBitmap(nonSquareImg));
+    }
+
+    private void uploadBodyImage(){
+        _currentSubject = Subject.FullBody;
+        uploadImage();
+    }
+    private void uploadEyesImage(){
+        _currentSubject = Subject.Eyes;
+        uploadImage();
+    }
+    private void uploadFeetImage(){
+        _currentSubject = Subject.Feet;
+        uploadImage();
+    }
 
     private void uploadImage(){
         //logic to upload image
@@ -400,9 +443,22 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
                 Bitmap bitmap = uriToBitmap(selectedImageUri);
 
                 if (bitmap != null) {
-                    // Show in ImageView
-                    fullImageView.setImageBitmap(bitmap);
-                    analyzeImage(bitmapToMat(bitmap), 1);
+                    switch (_currentSubject) {
+                        case FullBody:
+                            _bodyBitmap = bitmap;
+                            //todo: set imageViews for body, eyes, feet
+                            break;
+                        case Eyes:
+                            _eyesBitmap = bitmap;
+                            break;
+                        case Feet:
+                            _feetBitmap = bitmap;
+                            break;
+                    }
+                    // Show in results screen
+                    //fullImageView.setImageBitmap(bitmap);
+                    //Mat nonSquareImage = bitmapToMat(bitmap);
+                    //analyzeImage(matToSquareBitmap(nonSquareImage), 1);
                 }
             }
         }
@@ -412,12 +468,8 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         Mat mat = new Mat();
         Bitmap bmp32 = bitmap.copy(Bitmap.Config.ARGB_8888, true);
         Utils.bitmapToMat(bmp32, mat);
-
         return mat;
-
     }
-
-
 
     private Bitmap uriToBitmap(Uri uri) {
         try {
@@ -435,11 +487,26 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         }
     }
 
-    private void openCamera(){
+    private void openBodyCamera(){
+        _currentSubject = Subject.FullBody;
+        openCameraScreen();
+    }
+    private void openEyesCamera(){
+        _currentSubject = Subject.Eyes;
+        openCameraScreen();
+    }
+    private void openFeetCamera(){
+        _currentSubject = Subject.Feet;
+        openCameraScreen();
+    }
+
+    private void openCameraScreen(){
         //set camera layout to visible
         takePhotoLayout.setVisibility(View.VISIBLE);
         cameraView.setVisibility(View.VISIBLE);
+        captureButton.setEnabled(true);
         cameraView.enableView();
+
         capturedImageView.setVisibility(View.GONE);
         analyzingText.setVisibility(View.GONE);
         //centerCircleOverlay.setVisibility(View.VISIBLE);
@@ -452,8 +519,42 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
     }
 
     private void resetApp() { //used by "Try again" button in results screen
+
+        boolean isAbleToAnalyse=true;
+        Drawable okIcon = getDrawable( R.drawable.ok_icon);
+        Drawable errorIcon = getDrawable(R.drawable.error_icon);
+        //check if body,eyes,feet bitmaps exist. set icons accordingly
+        if (_bodyBitmap != null) {
+            bodyIconImgView.setImageDrawable(okIcon);
+        } else {
+            isAbleToAnalyse=false;
+            bodyIconImgView.setImageDrawable(errorIcon);
+        }
+        if (_eyesBitmap != null) {
+            eyesIconImgView.setImageDrawable(okIcon);
+        } else {
+            isAbleToAnalyse=false;
+            eyesIconImgView.setImageDrawable(errorIcon);
+        }
+        if (_feetBitmap != null) {
+            feetIconImgView.setImageDrawable(okIcon);
+        } else {
+            isAbleToAnalyse=false;
+            feetIconImgView.setImageDrawable(errorIcon);
+        }
+
+        //check if the body, eyes, feet bitmaps are null, then determine whether analyze button is enabled
+        if (isAbleToAnalyse) {
+            analyzeImageButton.setEnabled(true);
+        } else {
+            analyzeImageButton.setEnabled(false);
+        }
+
+
         //set start layout to visible
         startLayout.setVisibility(View.VISIBLE);
+        logoView.setVisibility(View.VISIBLE);
+
 
         //set camera layout to invisible
         takePhotoLayout.setVisibility(View.GONE);
@@ -462,14 +563,6 @@ public class MainActivity extends CameraActivity implements CameraBridgeViewBase
         resultsLayout.setVisibility(View.GONE);
 
 
-//        // Reset UI to initial state
-//        cameraView.setVisibility(View.VISIBLE);
-//        capturedImageView.setVisibility(View.GONE);
-//        centerCircleOverlay.setVisibility(View.VISIBLE);
-//        resultTextLayout.setVisibility(View.GONE);
-//        captureButton.setVisibility(View.VISIBLE);
-//        tryAgainButton.setVisibility(View.GONE);
-//        captureButton.setEnabled(true);
     }
 
     @Override
